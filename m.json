@@ -1,0 +1,9 @@
+{
+    "event": "private_message",
+    "target_user_id": 1,
+    "data": {
+        "message": "Hello, world!",
+        "type": "text",
+        "time": "2025-01-01 12:00:00"
+    }
+}

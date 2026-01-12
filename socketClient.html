@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Client</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            margin-bottom: 10px;
+            font-size: 2em;
+        }
+
+        .status {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: bold;
+        }
+
+        .status.disconnected {
+            background: #e74c3c;
+        }
+
+        .status.connected {
+            background: #27ae60;
+        }
+
+        .status.connecting {
+            background: #f39c12;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            min-height: 600px;
+        }
+
+        .sidebar {
+            background: #f8f9fa;
+            padding: 20px;
+            border-right: 1px solid #dee2e6;
+        }
+
+        .auth-section {
+            margin-bottom: 30px;
+        }
+
+        .auth-section h3 {
+            margin-bottom: 15px;
+            color: #2c3e50;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #495057;
+        }
+
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input[type="file"] {
+            padding: 8px;
+            cursor: pointer;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: transform 0.2s, box-shadow 0.2s;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn.danger {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+        }
+
+        .btn.danger:hover {
+            box-shadow: 0 5px 15px rgba(231, 76, 60, 0.4);
+        }
+
+        .chat-area {
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .messages {
+            flex: 1;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            height: 400px;
+            overflow-y: auto;
+        }
+
+        .message {
+            margin-bottom: 15px;
+            padding: 10px;
+            border-radius: 8px;
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.system {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+        }
+
+        .message.user {
+            background: #e8f5e8;
+            border-left: 4px solid #4caf50;
+        }
+
+        .message.error {
+            background: #ffebee;
+            border-left: 4px solid #f44336;
+        }
+
+        .message.info {
+            background: #fff3e0;
+            border-left: 4px solid #ff9800;
+        }
+
+        .message-header {
+            font-size: 0.85em;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .message-content {
+            font-size: 0.95em;
+            line-height: 1.4;
+        }
+
+        .message-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .online-users {
+            background: #e8f5e8;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .online-users h4 {
+            margin-bottom: 10px;
+            color: #2c3e50;
+        }
+
+        .user-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .user-badge {
+            background: #667eea;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+        }
+
+        .info-panel {
+            background: #f0f8ff;
+            border: 1px solid #b3d9ff;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .info-panel h4 {
+            color: #1565c0;
+            margin-bottom: 10px;
+        }
+
+        .info-panel ul {
+            list-style-type: none;
+            padding-left: 0;
+        }
+
+        .info-panel li {
+            padding: 5px 0;
+            border-bottom: 1px solid #e3f2fd;
+        }
+
+        .info-panel li:last-child {
+            border-bottom: none;
+        }
+
+        .code {
+            background: #f4f4f4;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+
+            .container {
+                margin: 10px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>WebSocket Client</h1>
+            <div class="status disconnected" id="connectionStatus">Disconnected</div>
+        </div>
+
+        <div class="main-content">
+            <div class="sidebar">
+                <div class="auth-section">
+                    <h3>🔐 Authentication</h3>
+                    <div class="form-group">
+                        <label for="serverUrl">Server URL:</label>
+                        <input type="text" id="serverUrl" value="wss://api.mashynbazar.com"
+                            placeholder="wss://api.mashynbazar.com">
+                        <!-- <input type="text" id="serverUrl" value="ws://localhost:8080" placeholder="ws://localhost:8080"> -->
+                    </div>
+                    <div class="form-group">
+                        <label for="jwtToken">JWT Token:</label>
+                        <!-- <textarea id="jwtToken" rows="3" placeholder="Enter your JWT token here...">eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NjU4Njk3MTUsImlkIjo0NCwicm9sZV9pZCI6MX0._v1dXRSTS_vmPqdsBIDAqRjXuhh4yRs_MbtXiN-w_XI</textarea> -->
+                        <textarea id="jwtToken" rows="3"
+                            placeholder="Enter your JWT token here...">eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NjkwNjI1NjAsImlkIjozMTEsInJvbGVfaWQiOjEwMH0.tYtvqeDQ-6mQd4eDNp_OKynDnxJKRzXk068KcqhStyA</textarea>
+                    </div>
+                    <button class="btn" id="connectBtn" onclick="connect()">Connect</button>
+                    <button class="btn danger" id="disconnectBtn" onclick="disconnect()" disabled>Disconnect</button>
+                </div>
+
+                <div class="online-users" id="onlineUsers" style="display: none;">
+                    <h4>👥 Online Users</h4>
+                    <div class="user-list" id="userList"></div>
+                </div>
+
+                <div class="info-panel">
+                    <h4>📋 Send Events</h4>
+                    <ul>
+                        <li><span class="code">ping</span> - Send ping to server (get pong response)</li>
+                        <li><span class="code">private_message</span> - Send private message with time, message, type
+                        </li>
+                        <li><span class="code">get_online_users</span> - Get online users list</li>
+                        <li><span class="code">image upload</span> - Upload image file and send as type 4 message</li>
+                    </ul>
+                </div>
+
+                <div class="info-panel">
+                    <h4>📥 Receive Events</h4>
+                    <ul>
+                        <li><span class="code">pong</span> - Response to ping with timestamp</li>
+                        <li><span class="code">new_message</span> - Incoming private messages</li>
+                        <li><span class="code">connected</span> - Connection success confirmation</li>
+                        <li><span class="code">error</span> - Error messages from server</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="chat-area">
+                <div class="messages" id="messages"></div>
+
+                <div class="message-actions">
+                    <button class="btn" onclick="getOnlineUsers()">Get Online Users</button>
+                    <button class="btn" onclick="sendPing()">Send Ping</button>
+                    <button class="btn" onclick="getServerInfo()">Server Info</button>
+                </div>
+
+                <div class="form-group">
+                    <label for="messageInput">💬 Send Message:</label>
+                    <input type="text" id="messageInput" placeholder="Type your message..."
+                        onkeypress="handleKeyPress(event)">
+                </div>
+                <button class="btn" onclick="sendMessage()">Send Message</button>
+
+                <div class="form-group" style="margin-top: 15px;">
+                    <label for="privateMessageInput">📩 Private Message:</label>
+                    <input type="number" id="targetUserId" placeholder="Target User ID" style="margin-bottom: 10px;">
+                    <input type="text" id="privateMessageInput" placeholder="Private message..."
+                        onkeypress="handlePrivateKeyPress(event)">
+                    <input type="text" id="isAdmin" placeholder="true..." onkeypress="handlePrivateKeyPress(event)"
+                        value="false">
+                    <!-- message type -->
+                    <select id="messageType">
+                        <option value="1">Text</option>
+                        <option value="2">Item</option>
+                        <option value="3">Video</option>
+                        <option value="4">Image</option>
+                        <option value="5">File</option>
+                    </select>
+                </div>
+                <button class="btn" onclick="sendPrivateMessage()">Send Private Message</button>
+
+                <div class="form-group" style="margin-top: 15px;">
+                    <label for="imageFileInput">🖼️ Send Image Message:</label>
+                    <input type="number" id="targetUserIdForImage" placeholder="Target User ID"
+                        style="margin-bottom: 10px;">
+
+                    <input type="file" id="imageFileInput" accept="image/*" style="margin-bottom: 10px;">
+                    <button class="btn" onclick="sendImageMessage()">Upload & Send Image</button>
+                </div>
+
+                <div class="form-group" style="margin-top: 15px;">
+                    <label for="roomInput">🏠 Join Room:</label>
+                    <input type="text" id="roomInput" placeholder="Room ID (e.g., general)"
+                        onkeypress="handleRoomKeyPress(event)">
+                </div>
+                <button class="btn" onclick="joinRoom()">Join Room</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let socket = null;
+        let isConnected = false;
+
+        // Update connection status
+        function updateStatus(status, className) {
+            const statusEl = document.getElementById('connectionStatus');
+            statusEl.textContent = status;
+            statusEl.className = `status ${className}`;
+        }
+
+        // Add message to chat
+        function addMessage(content, type = 'info') {
+            const messages = document.getElementById('messages');
+            const messageEl = document.createElement('div');
+            messageEl.className = `message ${type}`;
+
+            const timestamp = new Date().toLocaleTimeString();
+            messageEl.innerHTML = `
+                <div class="message-header">${timestamp}</div>
+                <div class="message-content">${content}</div>
+            `;
+
+            messages.appendChild(messageEl);
+            messages.scrollTop = messages.scrollHeight;
+        }
+
+        // Connect to WebSocket server
+        function connect() {
+            const serverUrl = document.getElementById('serverUrl').value;
+            const token = document.getElementById('jwtToken').value.trim();
+
+            if (!token) {
+                addMessage('❌ Please enter a JWT token', 'error');
+                return;
+            }
+
+            if (socket) {
+                socket.close();
+            }
+
+            updateStatus('Connecting...', 'connecting');
+            document.getElementById('connectBtn').disabled = true;
+
+            try {
+                // Build WebSocket URL with token
+                const wsUrl = serverUrl.replace('http://', 'ws://').replace('https://', 'wss://');
+                socket = new WebSocket(`${wsUrl}/ws?token=${encodeURIComponent(token)}`);
+
+                // Connection opened
+                socket.onopen = () => {
+                    isConnected = true;
+                    updateStatus('Connected', 'connected');
+                    document.getElementById('connectBtn').disabled = true;
+                    document.getElementById('disconnectBtn').disabled = false;
+                    document.getElementById('onlineUsers').style.display = 'block';
+                    addMessage('✅ Connected to WebSocket messaging service', 'system');
+                };
+
+                // Listen for messages
+                socket.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        handleServerMessage(data);
+                    } catch (e) {
+                        addMessage(`📨 Raw message: ${event.data}`, 'info');
+                    }
+                };
+
+                // Connection error
+                socket.onerror = (error) => {
+                    addMessage(`❌ WebSocket error`, 'error');
+                    updateStatus('Connection Failed', 'disconnected');
+                    document.getElementById('connectBtn').disabled = false;
+                };
+
+                // Connection closed
+                socket.onclose = (event) => {
+                    isConnected = false;
+                    updateStatus('Disconnected', 'disconnected');
+                    document.getElementById('connectBtn').disabled = false;
+                    document.getElementById('disconnectBtn').disabled = true;
+                    document.getElementById('onlineUsers').style.display = 'none';
+                    addMessage(`🔌 Disconnected: ${event.reason || 'Connection closed'}`, 'system');
+                };
+
+            } catch (error) {
+                addMessage(`❌ Connection failed: ${error.message}`, 'error');
+                updateStatus('Connection Failed', 'disconnected');
+                document.getElementById('connectBtn').disabled = false;
+            }
+        }
+
+        // Handle server messages
+        function handleServerMessage(data) {
+            switch (data.event) {
+                case 'ping':
+                    // Respond to server heartbeat ping to keep connection alive
+                    // Server expects any message back to update heartbeat
+                    sendWS({ event: 'ping' });
+                    break;
+                case 'connected':
+                    addMessage(`🎉 ${data.data.message}`, 'system');
+                    break;
+                case 'message':
+                    addMessage(`💬 ${data.data.username}: ${data.data.message}`, 'user');
+                    break;
+                case 'private_message':
+                    const privateMsg = data.data;
+                    const messageTime = new Date(privateMsg.time).toLocaleTimeString();
+                    addMessage(`📩 From ${privateMsg.from_username} (${privateMsg.from_user_id}) [${privateMsg.type}] at ${messageTime}: ${privateMsg.message}`, 'user');
+                    break;
+                case 'new_message':
+                    // Handle new incoming message (sent when a private message is received)
+                    handleNewMessage(data.data);
+                    break;
+                case 'error':
+                    addMessage(`❌ Error: ${data.data}`, 'error');
+                    break;
+                case 'online_users':
+                    updateOnlineUsers(data.data.users);
+                    break;
+                case 'user_status':
+                    addMessage(`👤 ${data.data.username} is now ${data.data.status}`, 'info');
+                    break;
+                case 'pong':
+                    addMessage(`🏓 Pong received at ${new Date(data.data.timestamp).toLocaleTimeString()}`, 'system');
+                    break;
+                default:
+                    addMessage(`📨 ${data.event}: ${JSON.stringify(data.data)}`, 'info');
+            }
+        }
+
+        // Handle new message event
+        function handleNewMessage(data) {
+            // Check if data is an array (multiple messages) or single message object
+            if (Array.isArray(data)) {
+                addMessage(`📬 Received ${data.length} new message(s)`, 'system');
+                data.forEach(msg => displayNewMessage(msg));
+            } else {
+                displayNewMessage(data);
+            }
+        }
+
+        // Display a single new message
+        function displayNewMessage(userMsg) {
+            // userMsg is a UserMessage object with: id, username, avatar, last_active_date, messages[]
+            const fromUsername = userMsg.username || 'Unknown';
+            const fromUserId = userMsg.id || 'N/A';
+
+            // Process each message in the messages array
+            if (userMsg.messages && Array.isArray(userMsg.messages)) {
+                userMsg.messages.forEach(msg => {
+                    const messageTime = msg.created_at ? new Date(msg.created_at).toLocaleTimeString() : 'N/A';
+                    const messageType = msg.type || 'N/A';
+                    const messageContent = msg.message || '';
+
+                    addMessage(`📬 New from ${fromUsername} (ID: ${fromUserId}) [Type: ${messageType}] [${messageTime}]: ${messageContent}`, 'user');
+                });
+            } else {
+                addMessage(`📬 New from ${fromUsername} (ID: ${fromUserId}): [No message content]`, 'user');
+            }
+        }
+
+        // Send message via WebSocket
+        function sendWS(messageData) {
+            if (socket && isConnected) {
+                socket.send(JSON.stringify(messageData));
+            }
+        }
+
+        // Disconnect from server
+        function disconnect() {
+            if (socket) {
+                socket.close();
+                socket = null;
+            }
+        }
+
+        // Send a public message
+        function sendMessage() {
+            const messageInput = document.getElementById('messageInput');
+            const message = messageInput.value.trim();
+
+            if (!message || !isConnected) return;
+
+            const messageData = {
+                event: 'message',
+                message: message
+            };
+
+            sendWS(messageData);
+            addMessage(`💬 You: ${message}`, 'user');
+            messageInput.value = '';
+        }
+
+        // Send a private message
+        function sendPrivateMessage() {
+            const targetUserId = document.getElementById('targetUserId').value;
+            const isAdmin = document.getElementById('isAdmin').value;
+            const messageInput = document.getElementById('privateMessageInput');
+            const message = messageInput.value.trim();
+
+            if (!message || !targetUserId || !isConnected) return;
+            messageTypeInteger = document.getElementById('messageType').value;
+
+            const messageData = {
+                event: 'private_message',
+                target_user_id: parseInt(targetUserId),
+                data: {
+                    message: message,
+                    type: parseInt(messageTypeInteger),
+                    admin: isAdmin === 'true',
+                    target_user_id: parseInt(targetUserId),
+                    time: new Date().toISOString()
+                }
+            };
+
+            sendWS(messageData);
+            addMessage(`📩 Private to User ${targetUserId}: ${message}`, 'user');
+            messageInput.value = '';
+        }
+
+        // Send image message (upload file first, then send via WebSocket)
+        async function sendImageMessage() {
+            const targetUserId = document.getElementById('targetUserIdForImage').value;
+            const fileInput = document.getElementById('imageFileInput');
+            const file = fileInput.files[0];
+
+            if (!file || !targetUserId || !isConnected) {
+                if (!file) {
+                    addMessage('❌ Please select an image file', 'error');
+                } else if (!targetUserId) {
+                    addMessage('❌ Please enter target user ID', 'error');
+                } else if (!isConnected) {
+                    addMessage('❌ Not connected to WebSocket', 'error');
+                }
+                return;
+            }
+
+            // Validate file type
+            if (!file.type.startsWith('image/')) {
+                addMessage('❌ Please select an image file', 'error');
+                return;
+            }
+
+            const token = document.getElementById('jwtToken').value.trim();
+            if (!token) {
+                addMessage('❌ JWT token is required for file upload', 'error');
+                return;
+            }
+
+            // Get server URL and convert to HTTP
+            const serverUrl = document.getElementById('serverUrl').value.trim();
+            let apiBaseUrl = serverUrl;
+
+            // Convert WebSocket URL to HTTP URL
+            if (apiBaseUrl.startsWith('ws://')) {
+                apiBaseUrl = apiBaseUrl.replace('ws://', 'http://');
+            } else if (apiBaseUrl.startsWith('wss://')) {
+                apiBaseUrl = apiBaseUrl.replace('wss://', 'https://');
+            }
+
+            // Remove /ws path if present
+            if (apiBaseUrl.endsWith('/ws')) {
+                apiBaseUrl = apiBaseUrl.slice(0, -3);
+            }
+
+            // Ensure no trailing slash
+            apiBaseUrl = apiBaseUrl.replace(/\/$/, '');
+
+            // Create FormData for file upload
+            const formData = new FormData();
+            formData.append('file', file);
+
+            addMessage(`📤 Uploading image...`, 'info');
+
+            try {
+                // Upload file to API
+                const response = await fetch(`${apiBaseUrl}/api/v1/users/messages/files`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (!response.ok || result.error) {
+                    addMessage(`❌ Upload failed: ${result.error || result.message || 'Unknown error'}`, 'error');
+                    return;
+                }
+
+                // Extract file path from response
+                // Response format: { "message": "<full_url_path>" } (when status is 0 or 200)
+                // Or: { "data": { "message": "<full_url_path>" } } (if wrapped)
+                const filePath = result.message || result.data?.message || result.data?.Message;
+
+                if (!filePath) {
+                    addMessage(`❌ Failed to get file path from server response. Response: ${JSON.stringify(result)}`, 'error');
+                    return;
+                }
+
+                addMessage(`✅ Image uploaded: ${filePath}`, 'system');
+
+                // Send private message via WebSocket with type 4 (Image)
+                const messageData = {
+                    event: 'private_message',
+                    target_user_id: parseInt(targetUserId),
+                    data: {
+                        message: filePath,  // The file path is the message body
+                        type: 4,  // Image type
+                        target_user_id: parseInt(targetUserId),
+                        time: new Date().toISOString()
+                    }
+                };
+
+                sendWS(messageData);
+                addMessage(`📩 Image message sent to User ${targetUserId}: ${filePath}`, 'user');
+
+                // Clear file input
+                fileInput.value = '';
+            } catch (error) {
+                addMessage(`❌ Upload error: ${error.message}`, 'error');
+            }
+        }
+
+        // Join a room (not implemented in server yet)
+        function joinRoom() {
+            const roomInput = document.getElementById('roomInput');
+            const roomId = roomInput.value.trim();
+
+            if (!roomId || !isConnected) return;
+
+            const messageData = {
+                event: 'join_room',
+                room_id: roomId
+            };
+
+            sendWS(messageData);
+            addMessage(`🏠 Joining room: ${roomId}`, 'system');
+            roomInput.value = '';
+        }
+
+        // Get online users
+        function getOnlineUsers() {
+            if (!isConnected) return;
+
+            const messageData = {
+                event: 'get_online_users'
+            };
+
+            sendWS(messageData);
+        }
+
+        // Send ping
+        function sendPing() {
+            if (!isConnected) return;
+
+            const messageData = {
+                event: 'ping'
+            };
+
+            sendWS(messageData);
+            addMessage('🏓 Ping sent...', 'info');
+        }
+
+        // Get server info via HTTP API (mock function)
+        async function getServerInfo() {
+            addMessage('ℹ️ Server Info: WebSocket endpoint at /ws', 'info');
+            addMessage('• Events: ping, message, private_message, get_online_users', 'info');
+            addMessage('• Private messages: {time, message, type} format', 'info');
+            addMessage('• Auth: JWT token via query parameter', 'info');
+        }
+
+        // Update online users list
+        function updateOnlineUsers(users) {
+            const userList = document.getElementById('userList');
+            userList.innerHTML = '';
+
+            if (users && users.length > 0) {
+                users.forEach(user => {
+                    const userBadge = document.createElement('div');
+                    userBadge.className = 'user-badge';
+                    userBadge.textContent = `${user.username} (${user.id})`;
+                    userList.appendChild(userBadge);
+                });
+                addMessage(`👥 Online users updated: ${users.length} users`, 'info');
+            } else {
+                userList.innerHTML = '<div class="user-badge">No users online</div>';
+            }
+        }
+
+        // Handle Enter key press for messages
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        function handlePrivateKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendPrivateMessage();
+            }
+        }
+
+        function handleRoomKeyPress(event) {
+            if (event.key === 'Enter') {
+                joinRoom();
+            }
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            addMessage('🚀 Welcome to WebSocket Client!', 'system');
+            addMessage('📝 Enter your JWT token and click Connect to start messaging.', 'info');
+            addMessage('💡 Connect to ws://84.200.87.48:8080/ws', 'info');
+        });
+    </script>
+</body>
+
+</html>

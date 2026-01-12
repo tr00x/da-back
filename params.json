@@ -1,0 +1,39 @@
+{
+    "type":"select",
+    "name": "type snegohoda",
+    "values":[
+        {
+            "id": 1,
+            "name": "detiskiy"
+        },
+        {
+            "id": 2,
+            "name": "krossover"
+        },
+        {
+            "id": 1,
+            "name": "sportivniy gorniy"
+        }
+    ]
+},
+
+{
+    "type":"select",
+    "name": "cylinder count",
+    "values":[
+        {
+            "id": 1,
+            "name": "4"
+        },
+        {
+            "id": 2,
+            "name": "5"
+        }
+    ]
+},
+
+{
+    "type":"integer",
+    "name": "year",
+    "values":[]
+},
