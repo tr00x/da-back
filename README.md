@@ -1,86 +1,160 @@
-# da-back — Mashynbazar Backend
+# Mashynbazar — Backend API
 
-> Go backend for a car marketplace platform. REST API + WebSocket real-time chat, structured as a clean layered architecture with Swagger documentation.
+> Production Go backend for a multi-vertical vehicle marketplace. Covers cars, motorcycles, and commercial transport — with real-time WebSocket chat, multi-role auth, Firebase push notifications, and a full admin panel API.
 
-## Tech Stack
+**Frontend:** [tr00x/offercar](https://github.com/tr00x/offercar)
 
-- **Language**: Go 1.21+
-- **Architecture**: Layered (`cmd` / `internal` / `pkg`)
-- **Transport**: HTTP REST + WebSocket
-- **Docs**: Swagger / OpenAPI (`/docs`)
-- **Build**: Makefile
+---
 
-## Project Structure
+## Stack
+
+| Layer | Technology |
+|---|---|
+| Framework | [Fiber v2](https://github.com/gofiber/fiber) |
+| Database | PostgreSQL via [pgx/v5](https://github.com/jackc/pgx) |
+| Auth | JWT (access + refresh), Google OAuth, Phone OTP |
+| Real-time | WebSocket (`gofiber/contrib/websocket`) |
+| Push | Firebase Cloud Messaging |
+| Validation | `go-playground/validator` |
+| Logging | `zerolog` |
+| Docs | Swagger (`swaggo/swag`) |
+| OTP/SMS | Twilio |
+| Images | EXIF stripping, resize, format normalization |
+| Reports | Excel export (`excelize`) |
+
+---
+
+## Architecture
+
+Clean layered architecture — Handler → Service → Repository. No frameworks dictating structure.
 
 ```
 .
-├── cmd/http/          # Entrypoint — HTTP server bootstrap
-├── internal/          # Core business logic (handlers, services, repositories)
-├── pkg/               # Shared utilities and helpers
-├── docs/              # Swagger / OpenAPI specs
-├── Makefile           # Build, run, and tooling commands
-└── .env.example       # Environment variable reference
+├── cmd/http/              # Entrypoint
+├── internal/
+│   ├── config/            # Config loader
+│   ├── delivery/http/     # HTTP handlers (one file per domain)
+│   ├── model/             # Domain models, DTOs, constants
+│   ├── repository/        # DB queries (pure SQL via pgx)
+│   ├── route/             # Route registration (one file per domain)
+│   ├── service/           # Business logic
+│   ├── storage/postgres/  # Migrations and seed SQL
+│   └── utils/             # Helpers: response, email, OTP, migrate
+├── pkg/
+│   ├── auth/              # JWT, guards, CORS, validators
+│   ├── files/             # File upload handling
+│   ├── firebase/          # FCM push notifications
+│   └── logger/            # Logger setup
+├── docs/                  # Swagger generated output
+└── Makefile               # Build and deploy commands
 ```
+
+---
+
+## API Overview
+
+Base path: `/api/v1`
+
+### Auth — `/auth`
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/admin-login` | Admin credentials login |
+| POST | `/user-login-google` | Google OAuth login |
+| POST | `/user-login-email` | Email + password login |
+| POST | `/user-login-phone` | Phone OTP initiation |
+| POST | `/user-phone-confirmation` | OTP verification |
+| POST | `/user-forget-password` | Password reset request |
+| POST | `/user-reset-password` | Password reset confirm |
+| POST | `/user-email-confirmation` | Email confirmation |
+| POST | `/third-party-login` | Dealer / broker / logist login |
+| POST | `/send-application` | New partner application |
+| POST | `/send-application-document` | Upload application docs `🔒` |
+| POST | `/user-register-device` | FCM device registration `🔒` |
+| DELETE | `/account/:id` | Account deletion `🔒` |
+
+### Users & Catalog — `/users`
+Cars, brands, models, generations, body types, transmissions, engines, drivetrains, fuel types, colors, cities, countries — full CRUD for listings with image/video upload, likes, price recommendations, and profile management.
+
+### Motorcycles — `/motorcycles`
+Category-based listings with dynamic parameters per category. Full CRUD with media management.
+
+### Commercial Transport — `/comtrans`
+Same pattern as motorcycles — categories, brands, models, dynamic parameters, full listing lifecycle.
+
+### Third-Party — `/third-party`
+Dedicated routes per role:
+- **Dealers** — create/manage car listings with dealer-specific guards
+- **Logists** — manage delivery destinations
+- **Brokers** / **Car Services** — planned
+
+### Admin — `/admin` `🔒 Admin only`
+Full back-office API: users, countries, cities, regions, brands, models, generations, modifications, body types, transmissions, engines, drivetrains, fuel types, colors, moto/comtrans catalogs, company types, activity fields, partner applications (accept/reject).
+
+### Real-time Chat — `/ws`
+| Endpoint | Description |
+|---|---|
+| `GET /ws/conversations` | List user conversations `🔒` |
+| `GET /ws/conversations/:id/messages` | Message history `🔒` |
+| `GET /ws` | WebSocket upgrade — live messaging `🔒` |
+
+WebSocket handler manages concurrent connections with per-connection write mutexes, graceful disconnects, and Firebase push delivery for offline users.
+
+---
 
 ## Getting Started
 
 ### Prerequisites
-
-- Go 1.21+
-- Make
+- Go 1.24+
+- PostgreSQL
+- `swag` CLI (optional, for doc regeneration)
 
 ### Setup
 
 ```bash
+git clone https://github.com/tr00x/da-back.git
+cd da-back
+
 cp .env.example .env
-# Fill in DB connection, JWT secret, etc.
+# Fill in DB credentials, JWT secrets, Twilio, Firebase config
 ```
 
 ### Run
 
 ```bash
-make run
+go run ./cmd/http/main.go
 ```
 
-Or build and run manually:
+### Build
 
 ```bash
-go build -o da-backend ./cmd/http
-./da-backend
+make deploy   # Cross-compile to Linux amd64 and deploy via SCP + systemd restart
 ```
 
-### Available Make targets
+### Regenerate Swagger docs
 
 ```bash
-make run      # Run in development mode
-make build    # Compile binary
-make docs     # Regenerate Swagger docs (requires swaggo)
+make swag
 ```
 
-## API Documentation
+Swagger UI available at: `http://localhost:8080/swagger/`
 
-Swagger UI is available at:
-
-```
-http://localhost:<PORT>/docs/index.html
-```
-
-## WebSocket
-
-Real-time chat is exposed via WebSocket. A minimal test client is included at `socketClient.html` for local development and debugging.
+---
 
 ## Environment Variables
 
-See `.env.example` for the full list. Key variables:
-
 | Variable | Description |
 |---|---|
-| `PORT` | HTTP server port |
-| `DB_DSN` | Database connection string |
-| `JWT_SECRET` | JWT signing secret |
+| `DB_HOST` / `DB_PORT` / `DB_USER` / `DB_PASSWORD` / `DB_NAME` | PostgreSQL connection |
+| `PORT` | HTTP server port (e.g. `:8080`) |
+| `ACCESS_KEY` / `REFRESH_KEY` | JWT signing secrets |
+| `ACCESS_TIME` / `REFRESH_TIME` | Token TTLs (e.g. `1h`, `72h`) |
+| `UPLOAD_PATH` | Local path for uploaded files |
+| `LOGGER_FOLDER_PATH` / `LOGGER_FILENAME` | Log output config |
+| `APP_MODE` | `dev` or `production` |
+| `APP_VERSION` | Shown in logs and responses |
+
+---
 
 ## Notes
 
-This repository contains the backend service for the Mashynbazar car marketplace platform. The frontend React client lives at [tr00x/offercar](https://github.com/tr00x/offercar).
-
-A security audit of this codebase was conducted by [AmriTech](https://amritech.us), identifying SQL injection vectors, authentication weaknesses, and architectural issues — with remediation recommendations delivered as a formal technical report.
+This backend was subject to an independent technical audit by [AmriTech](https://amritech.us), covering SQL injection vectors, authentication weaknesses, insecure direct object references, and API design issues. A formal remediation report was delivered to the client.
