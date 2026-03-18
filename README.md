@@ -155,6 +155,3 @@ Swagger UI available at: `http://localhost:8080/swagger/`
 
 ---
 
-## Notes
-
-This backend was subject to an independent technical audit by [AmriTech](https://amritech.us), covering SQL injection vectors, authentication weaknesses, insecure direct object references, and API design issues. A formal remediation report was delivered to the client.
